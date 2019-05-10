@@ -1,19 +1,63 @@
 #include <iostream>
+#include <cmath>
 #include "list_node.cpp"
 
 struct Hasher
 {
+  // Big O: O(N) where N is size of string
   virtual int hash(std::string, int N) = 0;
 };
 
 struct GeneralStringHasher : Hasher
 {
+  // Big O: O(N) where N is size of string
   int hash(std::string key, int N)
   {
     unsigned hash_val = 0;
     for(int i = 0; i < key.size(); i++)
       hash_val = (127 * hash_val + key[i]) % 16908799;
     return hash_val % N;
+  }
+};
+
+struct BitShiftHasher : Hasher
+{
+  // Big O: O(N) where N is size of string
+  int hash(std::string key , int N)
+  {
+    const unsigned shift = 6;
+    const unsigned zero = 0;
+    unsigned mask = ~zero >> (32- shift ); // low 6 bits on
+    unsigned result = 0;
+
+    for (int i = 0; i < key.size (); i++)
+      result = (result << shift) | (key[i] & mask );
+
+    return result % N;
+  }
+};
+
+struct SumHasher : Hasher
+{
+  // Big O: O(N) where N is size of string
+  int hash(std::string s, int N)
+  {
+    int result = 0;
+    for (int i=0; i<s.size (); ++i)
+      result += s[i];
+    return abs(result) % N;
+  }
+};
+
+struct ProdHasher : Hasher
+{
+  // Big O: O(N) where N is size of string
+  int hash(std::string s, int N)
+  {
+    int result = 1;
+    for (int i=0; i<s.size (); ++i)
+      result *= s[i];
+    return abs(result) % N;
   }
 };
 
@@ -54,6 +98,7 @@ class ChainedHashTable
       }
     }
 
+    // Big O average: O(1) worst case: O(N)
     void insert(std::string word)
     {
       int index = hasher->hash(word, capacity);
@@ -71,11 +116,13 @@ class ChainedHashTable
       }
     }
 
+    // Big O average: O(1) worst case: O(N)
     int find(std::string word)
     {
       return operator[](word);
     }
 
+    // Big O average: O(1) worst case: O(N)
     void remove(std::string word)
     {
       int index = hasher->hash(word, capacity);
@@ -88,19 +135,91 @@ class ChainedHashTable
           delete temp;
           elements[index] = t;
         }
-        while(temp->next)
+        else
         {
+          while(temp->next && temp->next->key != word)
+          {
+            temp = temp->next;
+          }
           if(temp->next->key == word)
           {
             list_node *t = temp->next->next;
             delete temp->next;
             temp->next = t;
           }
-          temp = temp->next;
         }
       }
     }
 
+    int chain_length(int index)
+    {
+      list_node *temp = elements[index];
+      int count = 0;
+
+      while(temp)
+      {
+        count++;
+        temp = temp->next;
+      }
+
+      return count;
+    }
+
+    int min_chain_length()
+    {
+      int min = chain_length(0);
+
+      for(int i = 1; i < capacity; i++)
+      {
+        int current_length = chain_length(i);
+
+        if(current_length < min)
+          min = current_length;
+      }
+
+      return min;
+    }
+
+    int max_chain_length()
+    {
+      int max = 0;
+
+      for(int i = 0; i < capacity; i++)
+      {
+        int current_length = chain_length(i);
+
+        if(current_length > max)
+          max = current_length;
+      }
+
+      return max;
+    }
+
+    double avg_chain_length()
+    {
+      double sum = 0;
+
+      for(int i = 0; i < capacity; i++)
+        sum += static_cast<double>(chain_length(i));
+
+      return sum / double(capacity);
+    }
+
+    double std_dev_chain()
+    {
+      double avg = avg_chain_length();
+      double sum = 0;
+
+      for(int i = 0; i < capacity; i++)
+      {
+        double current_length = static_cast<double>(chain_length(i));
+        sum += ((current_length - avg ) * (current_length - avg));
+      }
+
+      return sqrt((sum / double(capacity)));
+    }
+
+    // Big O average: O(1) worst case: O(N)
     int& operator[](std::string word)
     {
       int index = hasher->hash(word, capacity);
